@@ -1,186 +1,333 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { FormConfig, FormField, FieldType, ConditionalLogic } from '../../types';
+import { FormConfig, FormField, FieldType } from '../../types';
+import { Layers, CheckCircle2, Camera, Trash2, FileUp, Upload, ShieldCheck, X, RefreshCw } from 'lucide-react';
 
 interface Props {
   form: FormConfig;
+  allForms?: FormConfig[];
   onSubmit: (data: Record<string, any>) => void;
+  onSaveDraft?: (data: Record<string, any>) => string | undefined;
+  initialData?: Record<string, any>;
+  isNested?: boolean;
+  onNestedDataChange?: (data: Record<string, any>) => void;
+  parentFormData?: Record<string, any>;
 }
 
-const FormPreview: React.FC<Props> = ({ form, onSubmit }) => {
-  const allFields = useMemo(() => form.pages.flatMap(p => p.fields), [form]);
-  
-  // Track visibility state to detect transitions for conditional default values
-  const [prevVisibility, setPrevVisibility] = useState<Record<string, boolean>>({});
+/**
+ * Robust Signature Pad using HTML5 Canvas
+ */
+const SignaturePad: React.FC<{ 
+  onChange: (data: string) => void, 
+  value?: string,
+  onCaptureFace: () => void,
+  hasFace?: boolean 
+}> = ({ onChange, value, onCaptureFace, hasFace }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
 
-  const [formData, setFormData] = useState<Record<string, any>>(() => {
-    // Initialize with standard default values
-    const initial: Record<string, any> = {};
-    allFields.forEach(f => {
-      if (f.defaultValue) {
-        initial[f.id] = f.defaultValue;
-      }
-    });
-    return initial;
-  });
+  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+    setIsDrawing(true);
+    draw(e);
+  };
 
-  /**
-   * Evaluates a single logic condition against the current form state.
-   */
-  const evaluateCondition = (rule: any, currentData: Record<string, any>) => {
-    const value = currentData[rule.fieldId];
-    const targetValue = rule.value;
-
-    if (value === undefined || value === null || value === '') {
-        return rule.operator === 'not_equals';
-    }
-
-    if (Array.isArray(value)) {
-        switch (rule.operator) {
-            case 'equals':
-                return value.length === 1 && String(value[0]) === String(targetValue);
-            case 'not_equals':
-                return !value.includes(targetValue);
-            case 'contains':
-                return value.includes(targetValue);
-            default:
-                return false;
-        }
-    }
-
-    const strValue = String(value).toLowerCase();
-    const strTarget = String(targetValue).toLowerCase();
-
-    switch (rule.operator) {
-      case 'equals':
-        return String(value) === String(targetValue);
-      case 'not_equals':
-        return String(value) !== String(targetValue);
-      case 'contains':
-        return strValue.includes(strTarget);
-      case 'starts_with':
-        return strValue.startsWith(strTarget);
-      case 'ends_with':
-        return strValue.endsWith(strTarget);
-      case 'greater_than':
-        return Number(value) > Number(targetValue);
-      case 'less_than':
-        return Number(value) < Number(targetValue);
-      default:
-        return false;
+  const stopDrawing = () => {
+    setIsDrawing(false);
+    if (canvasRef.current) {
+      onChange(canvasRef.current.toDataURL());
     }
   };
 
-  /**
-   * Checks if a field should be visible.
-   */
-  const isFieldVisible = (field: FormField, currentData: Record<string, any>) => {
-    if (!field.conditionalLogic || !field.conditionalLogic.rules || field.conditionalLogic.rules.length === 0) {
-      return true;
-    }
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-    const { action, scope, rules } = field.conditionalLogic;
-    const activeRules = rules.filter(r => r.fieldId);
-    if (activeRules.length === 0) return true;
+    const rect = canvas.getBoundingClientRect();
+    const x = ('touches' in e) ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = ('touches' in e) ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
 
-    const results = activeRules.map(rule => evaluateCondition(rule, currentData));
-    const matches = scope === 'all' 
-      ? results.every(r => r === true)
-      : results.some(r => r === true);
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#0f172a';
 
-    return action === 'show' ? matches : !matches;
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
   };
 
-  // Detect visibility changes and apply conditional default values
+  const clear = () => {
+    if (!canvasRef.current) return;
+    const ctx = canvasRef.current.getContext('2d');
+    ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    onChange('');
+  };
+
+  return (
+    <div className="border-2 border-slate-100 rounded-2xl bg-slate-50 overflow-hidden group hover:border-red-200 transition-all">
+      <div className="relative h-48 bg-white">
+        <canvas
+          ref={canvasRef}
+          width={600}
+          height={200}
+          className="w-full h-full cursor-crosshair touch-none"
+          onMouseDown={startDrawing}
+          onMouseUp={stopDrawing}
+          onMouseMove={draw}
+          onTouchStart={startDrawing}
+          onTouchEnd={stopDrawing}
+          onTouchMove={draw}
+        />
+        {!value && !isDrawing && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+            <span className="text-2xl font-black italic tracking-widest text-slate-300">AUTHORIZED SIGNATURE</span>
+          </div>
+        )}
+      </div>
+      <div className="bg-slate-50 p-4 flex justify-between items-center border-t border-slate-100">
+        <div className="flex gap-2">
+          <button 
+            type="button" 
+            onClick={onCaptureFace}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${hasFace ? 'bg-emerald-100 text-emerald-700' : 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-100'}`}
+          >
+            <Camera size={14} /> {hasFace ? 'Identity Verified' : 'Verify Identity'}
+          </button>
+          {hasFace && (
+            <div className="w-8 h-8 rounded-lg overflow-hidden border border-emerald-200">
+               <ShieldCheck size={16} className="m-auto text-emerald-600 mt-1.5" />
+            </div>
+          )}
+        </div>
+        <button 
+          type="button" 
+          onClick={clear}
+          className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-red-600 transition-colors"
+        >
+          Clear Pad
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Face Capture Utility for Biometric Authentication
+ */
+const FaceCaptureOverlay: React.FC<{ onCapture: (img: string) => void, onClose: () => void }> = ({ onCapture, onClose }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+
   useEffect(() => {
-    const nextVisibility: Record<string, boolean> = {};
-    const nextData = { ...formData };
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(s => {
+        setStream(s);
+        if (videoRef.current) videoRef.current.srcObject = s;
+      })
+      .catch(err => {
+        alert("Camera access denied. Biometric verification is required for signatures.");
+        onClose();
+      });
+    return () => stream?.getTracks().forEach(t => t.stop());
+  }, []);
+
+  const capture = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
+    onCapture(canvas.toDataURL('image/jpeg'));
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-6">
+      <div className="bg-white rounded-[2.5rem] overflow-hidden max-w-lg w-full shadow-2xl animate-in zoom-in-95">
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <h3 className="text-sm font-black uppercase tracking-widest">Biometric Identity Capture</h3>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><X size={20} /></button>
+        </div>
+        <div className="aspect-video bg-black relative">
+          <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover grayscale" />
+          <div className="absolute inset-0 border-[40px] border-slate-900/40 pointer-events-none">
+            <div className="w-full h-full border-2 border-red-500/50 rounded-full"></div>
+          </div>
+        </div>
+        <div className="p-8 text-center">
+          <p className="text-xs text-slate-500 font-medium mb-6">Align your face within the frame and click capture. This will be stored as an encrypted metadata for this record.</p>
+          <button 
+            onClick={capture}
+            className="w-full py-4 bg-red-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-red-700 shadow-xl shadow-red-100 transition-all flex items-center justify-center gap-3"
+          >
+            <Camera size={20} /> Capture & Verify
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const FormPreview: React.FC<Props> = ({ 
+    form, 
+    allForms = [], 
+    onSubmit, 
+    onSaveDraft,
+    initialData,
+    isNested = false, 
+    onNestedDataChange,
+    parentFormData = {}
+}) => {
+  const allFields = useMemo(() => form.pages.flatMap(p => p.fields), [form]);
+  const [formData, setFormData] = useState<Record<string, any>>(() => initialData || {});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [resumeCode, setResumeCode] = useState<string | null>(null);
+  const [isFaceCaptureOpen, setIsFaceCaptureOpen] = useState<{fieldId: string} | null>(null);
+
+  useEffect(() => {
+    if (initialData) setFormData(initialData);
+  }, [initialData]);
+
+  // Logic to handle auto-calculations
+  useEffect(() => {
     let dataChanged = false;
+    const nextData = { ...formData };
 
     allFields.forEach(field => {
-      const visible = isFieldVisible(field, formData);
-      nextVisibility[field.id] = visible;
-
-      // Transition check: From hidden to visible
-      if (visible && !prevVisibility[field.id] && field.conditionalDefaultValue) {
-          // Apply conditional default value only if the current value is empty or equal to standard default
-          if (!formData[field.id] || formData[field.id] === field.defaultValue) {
-              nextData[field.id] = field.conditionalDefaultValue;
+      if (field.type === FieldType.CALCULATION && field.formula) {
+        try {
+          // Replace {field:ID} with values from formData
+          const resolvedFormula = field.formula.replace(/\{field:([^}]+)\}/g, (match, fieldId) => {
+            const val = formData[fieldId] || 0;
+            return isNaN(Number(val)) ? "0" : String(val);
+          });
+          
+          // Basic sanitization: only allowed characters for simple math
+          if (/^[0-9+\-*/().\s]+$/.test(resolvedFormula)) {
+            const result = eval(resolvedFormula);
+            if (nextData[field.id] !== result) {
+              nextData[field.id] = result;
               dataChanged = true;
+            }
           }
+        } catch (e) {
+          console.warn("Formula evaluation failed for field", field.id);
+        }
       }
     });
 
-    setPrevVisibility(nextVisibility);
-    if (dataChanged) {
-        setFormData(nextData);
-    }
+    if (dataChanged) setFormData(nextData);
   }, [formData, allFields]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const submittedData: Record<string, any> = {};
-    allFields.forEach(f => {
-      if (isFieldVisible(f, formData)) {
-        submittedData[f.id] = formData[f.id];
-      }
-    });
-    
-    onSubmit(submittedData);
+  const validateField = (field: FormField, value: any): string | null => {
+    if (field.required && (!value || (Array.isArray(value) && value.length === 0))) {
+      return 'This field is required.';
+    }
+    if (field.type === FieldType.EMAIL && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      return 'Please enter a valid email address.';
+    }
+    return null;
   };
 
   const handleInputChange = (fieldId: string, value: any) => {
     setFormData(prev => ({ ...prev, [fieldId]: value }));
+    const field = allFields.find(f => f.id === fieldId);
+    if (field) {
+      const error = validateField(field, value);
+      setErrors(prev => ({ ...prev, [fieldId]: error || '' }));
+    }
+  };
+
+  const isFieldVisible = (field: FormField, currentData: Record<string, any>) => {
+    if (!field.conditionalLogic || !field.conditionalLogic.rules || field.conditionalLogic.rules.length === 0) return true;
+    const { action, scope, rules } = field.conditionalLogic;
+    const results = rules.map(rule => {
+      const value = currentData[rule.fieldId];
+      const target = rule.value;
+      if (rule.operator === 'is_empty') return !value;
+      if (rule.operator === 'is_not_empty') return !!value;
+      if (rule.operator === 'equals') return String(value) === String(target);
+      if (rule.operator === 'contains') return String(value).toLowerCase().includes(String(target).toLowerCase());
+      return false;
+    });
+    const matches = scope === 'all' ? results.every(r => r) : results.some(r => r);
+    return action === 'show' ? matches : !matches;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newErrors: Record<string, string> = {};
+    allFields.forEach(f => {
+      if (isFieldVisible(f, formData)) {
+        const err = validateField(f, formData[f.id]);
+        if (err) newErrors[f.id] = err;
+      }
+    });
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      alert('Investigation Protocol Violation: Please correct the marked fields.');
+      return;
+    }
+
+    onSubmit(formData);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 animate-in fade-in duration-700">
-      <div className="mb-10">
-        <h2 className="text-4xl font-black text-slate-900 tracking-tight mb-2">{form.title}</h2>
-        <p className="text-lg text-slate-500 leading-relaxed font-medium">{form.description}</p>
-      </div>
+    <div className="relative">
+      {isFaceCaptureOpen && (
+        <FaceCaptureOverlay 
+          onCapture={(img) => handleInputChange(`${isFaceCaptureOpen.fieldId}_face`, img)}
+          onClose={() => setIsFaceCaptureOpen(null)}
+        />
+      )}
 
-      <div className="flex flex-wrap -mx-3">
-        {allFields.map((field) => {
-          const visible = isFieldVisible(field, formData);
-          
-          if (!visible) return null;
+      {resumeCode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+           <div className="bg-white rounded-[2.5rem] p-10 max-w-md w-full shadow-2xl text-center">
+              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckCircle2 size={40} />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 mb-2">Progress Encrypted</h3>
+              <p className="text-slate-500 font-medium mb-8">Secure draft saved. Use this key to resume later.</p>
+              <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-6 mb-8 group cursor-pointer" onClick={() => {navigator.clipboard.writeText(resumeCode!); alert('Code copied!');}}>
+                 <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Resume Key</span>
+                 <span className="text-4xl font-black text-red-600 tracking-widest uppercase">{resumeCode}</span>
+              </div>
+              <button onClick={() => setResumeCode(null)} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs">Continue Investigation</button>
+           </div>
+        </div>
+      )}
 
-          return (
-            <div 
-              key={field.id}
-              className={`px-3 mb-8 animate-in fade-in slide-in-from-bottom-4 zoom-in-95 duration-500 fill-mode-both ${
+      <form onSubmit={handleSubmit} className="space-y-8 animate-in fade-in duration-700">
+        <div className="mb-10">
+            <h2 className="text-4xl font-black text-slate-900 tracking-tight mb-2">{form.title}</h2>
+            <p className="text-lg text-slate-500 leading-relaxed font-medium">{form.description}</p>
+        </div>
+
+        <div className="flex flex-wrap -mx-3">
+          {allFields.map((field) => {
+            if (!isFieldVisible(field, formData)) return null;
+
+            return (
+              <div key={field.id} className={`px-3 mb-8 ${
                 field.width === '1/4' ? 'w-1/4' : 
                 field.width === '1/2' ? 'w-1/2' : 
                 field.width === '3/4' ? 'w-3/4' : 'w-full'
-              }`}
-            >
-              {field.type === FieldType.SECTION ? (
-                <div className="mt-10 mb-6 border-b-2 border-slate-100 pb-3">
-                  <h3 className="text-2xl font-black text-slate-800 tracking-tight">{field.label}</h3>
-                  {field.description && <p className="text-sm text-slate-500 font-medium mt-1">{field.description}</p>}
-                </div>
-              ) : field.type === FieldType.PAGE_BREAK ? (
-                <div className="w-full h-12 flex items-center gap-4 my-8">
-                    <hr className="flex-1 border-slate-100 border-dashed" />
-                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Next Step</span>
-                    <hr className="flex-1 border-slate-100 border-dashed" />
-                </div>
-              ) : (
+              }`}>
                 <div className="flex flex-col gap-2.5">
                   <label className="text-sm font-bold text-slate-700 flex items-center gap-1.5 ml-1">
                     {field.label}
-                    {field.required && <span className="text-rose-500 text-lg">*</span>}
+                    {field.required && <span className="text-red-600 text-lg">*</span>}
                   </label>
                   
                   {field.type === FieldType.TEXT && (
                     <input 
                       type="text" 
-                      required={field.required}
                       value={formData[field.id] || ''}
-                      className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-100 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 outline-none transition-all placeholder:text-slate-300 font-medium bg-slate-50/50 hover:bg-white"
-                      placeholder={field.placeholder || 'Type here...'}
+                      placeholder={field.placeholder || 'Enter value...'}
+                      className={`w-full px-5 py-3.5 rounded-2xl border-2 transition-all outline-none bg-slate-50/50 ${errors[field.id] ? 'border-red-300 focus:border-red-500' : 'border-slate-100 focus:border-red-500'}`}
                       onChange={(e) => handleInputChange(field.id, e.target.value)}
                     />
                   )}
@@ -188,131 +335,104 @@ const FormPreview: React.FC<Props> = ({ form, onSubmit }) => {
                   {field.type === FieldType.NUMBER && (
                     <input 
                       type="number" 
-                      required={field.required}
                       value={formData[field.id] || ''}
-                      className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-100 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 outline-none transition-all font-medium bg-slate-50/50 hover:bg-white"
+                      className={`w-full px-5 py-3.5 rounded-2xl border-2 transition-all outline-none bg-slate-50/50 ${errors[field.id] ? 'border-red-300 focus:border-red-500' : 'border-slate-100 focus:border-red-500'}`}
                       onChange={(e) => handleInputChange(field.id, e.target.value)}
                     />
                   )}
 
-                  {field.type === FieldType.TEXTAREA && (
-                    <textarea 
-                      required={field.required}
-                      value={formData[field.id] || ''}
-                      className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 h-40 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 outline-none resize-none transition-all font-medium bg-slate-50/50 hover:bg-white"
-                      placeholder={field.placeholder}
-                      onChange={(e) => handleInputChange(field.id, e.target.value)}
-                    />
-                  )}
-
-                  {field.type === FieldType.SELECT && (
-                    <div className="relative">
-                        <select 
-                            required={field.required}
-                            value={formData[field.id] || ''}
-                            className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-100 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 outline-none transition-all appearance-none bg-slate-50/50 hover:bg-white font-bold text-slate-700"
-                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                        >
-                            <option value="">Select an option...</option>
-                            {field.choices?.map(c => <option key={c.id} value={c.value}>{c.text}</option>)}
-                        </select>
-                        <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                        </div>
-                    </div>
-                  )}
-
-                  {field.type === FieldType.RADIO && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                      {field.choices?.map(c => (
-                        <label key={c.id} className="flex items-center gap-4 px-5 py-3 rounded-2xl border-2 border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 cursor-pointer transition-all group">
-                          <div className="relative flex items-center justify-center shrink-0">
-                            <input 
-                              type="radio" 
-                              name={field.id} 
-                              value={c.value} 
-                              checked={formData[field.id] === c.value}
-                              className="peer sr-only"
-                              onChange={() => handleInputChange(field.id, c.value)}
-                            />
-                            <div className="w-6 h-6 border-2 border-slate-200 rounded-full peer-checked:border-indigo-600 transition-all bg-white group-hover:border-indigo-300"></div>
-                            <div className="absolute w-2.5 h-2.5 bg-indigo-600 rounded-full scale-0 peer-checked:scale-100 transition-transform"></div>
-                          </div>
-                          <span className="text-sm text-slate-600 group-hover:text-indigo-900 font-bold">{c.text}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-
-                  {field.type === FieldType.CHECKBOX && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                      {field.choices?.map(c => (
-                        <label key={c.id} className="flex items-center gap-4 px-5 py-3 rounded-2xl border-2 border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 cursor-pointer transition-all group">
-                          <div className="relative flex items-center justify-center shrink-0">
-                            <input 
-                              type="checkbox" 
-                              value={c.value} 
-                              checked={(formData[field.id] || []).includes(c.value)}
-                              className="peer sr-only"
-                              onChange={(e) => {
-                                const currentValues = formData[field.id] || [];
-                                const newValues = e.target.checked 
-                                  ? [...currentValues, c.value]
-                                  : currentValues.filter((v: string) => v !== c.value);
-                                handleInputChange(field.id, newValues);
-                              }}
-                            />
-                            <div className="w-6 h-6 border-2 border-slate-200 rounded-lg peer-checked:border-indigo-600 peer-checked:bg-indigo-600 transition-all bg-white group-hover:border-indigo-300"></div>
-                            <svg className="absolute w-4 h-4 text-white scale-0 peer-checked:scale-100 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                          <span className="text-sm text-slate-600 group-hover:text-indigo-900 font-bold">{c.text}</span>
-                        </label>
-                      ))}
+                  {field.type === FieldType.CALCULATION && (
+                    <div className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-100 bg-slate-50/50 font-black text-slate-900 flex items-center justify-between">
+                       <span>{formData[field.id] || 0}</span>
+                       <RefreshCw size={14} className="text-slate-300 animate-spin-slow" />
                     </div>
                   )}
 
                   {field.type === FieldType.SIGNATURE && (
-                    <div className="border-2 border-slate-100 rounded-2xl bg-slate-50 overflow-hidden group hover:border-indigo-200 transition-all">
-                      <div className="h-44 relative flex items-center justify-center">
-                        <span className="text-slate-300 font-bold italic select-none text-2xl tracking-widest opacity-40 group-hover:scale-110 transition-transform">Sign Here</span>
-                      </div>
-                      <div className="bg-slate-100/80 p-3 flex justify-between items-center border-t border-slate-200/50">
-                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Biometric Identity Verified</span>
-                        <button type="button" className="px-3 py-1 bg-white text-[10px] text-indigo-600 font-black uppercase tracking-widest rounded-lg shadow-sm hover:text-indigo-800">Clear</button>
-                      </div>
+                    <SignaturePad 
+                      value={formData[field.id]} 
+                      onChange={(val) => handleInputChange(field.id, val)} 
+                      onCaptureFace={() => setIsFaceCaptureOpen({fieldId: field.id})}
+                      hasFace={!!formData[`${field.id}_face`]}
+                    />
+                  )}
+
+                  {field.type === FieldType.FILE && (
+                    <div className="border-2 border-dashed border-slate-200 rounded-3xl p-8 bg-slate-50/50 hover:border-red-300 hover:bg-red-50/20 transition-all text-center group">
+                        <input 
+                          type="file" 
+                          multiple={field.multipleFiles}
+                          className="hidden" 
+                          id={`file-${field.id}`}
+                          onChange={(e) => {
+                            // Fix: explicitly cast the array elements to File to resolve type error on .name property
+                            const files = Array.from(e.target.files || []) as File[];
+                            handleInputChange(field.id, files.map(f => f.name));
+                          }} 
+                        />
+                        <label htmlFor={`file-${field.id}`} className="cursor-pointer block">
+                           <div className="w-16 h-16 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center mx-auto mb-4 text-slate-400 group-hover:text-red-600 group-hover:scale-110 transition-all">
+                              <Upload size={24} />
+                           </div>
+                           <p className="text-sm font-bold text-slate-700">Drag files here or click to browse</p>
+                           <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Maximum size: 25MB per file</p>
+                        </label>
+                        {formData[field.id] && (
+                          <div className="mt-6 flex flex-wrap gap-2 justify-center">
+                             {(formData[field.id] as string[]).map((name, i) => (
+                               <div key={i} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-600 shadow-sm">
+                                  <FileUp size={12} /> {name}
+                               </div>
+                             ))}
+                          </div>
+                        )}
                     </div>
                   )}
 
-                  {field.description && <p className="text-xs text-slate-400 mt-1.5 ml-1 font-medium italic opacity-80 leading-relaxed">{field.description}</p>}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                  {field.type === FieldType.SELECT && (
+                    <select 
+                      className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-100 bg-slate-50/50 outline-none focus:border-red-500 font-bold"
+                      value={formData[field.id] || ''}
+                      onChange={(e) => handleInputChange(field.id, e.target.value)}
+                    >
+                      <option value="">Choose an option...</option>
+                      {field.choices?.map(c => <option key={c.id} value={c.value}>{c.text}</option>)}
+                    </select>
+                  )}
 
-      <div className="pt-12 flex flex-col sm:flex-row items-center justify-between gap-6 border-t-4 border-slate-50 mt-12">
-        <button 
-          type="button"
-          onClick={() => alert('Progress successfully cached. Use your temporary link to resume.')}
-          className="text-indigo-600 text-sm font-black hover:text-indigo-800 tracking-tight flex items-center gap-2 group"
-        >
-          <span className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-          </span>
-          Save & Finish Later
-        </button>
-        <button 
-          type="submit"
-          className="w-full sm:w-auto px-12 py-5 bg-indigo-600 text-white rounded-2xl font-black text-lg shadow-2xl shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-1 hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-3"
-        >
-          {form.submitButtonText || 'Complete Submission'}
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-        </button>
-      </div>
-    </form>
+                  {errors[field.id] && (
+                    <span className="text-[10px] font-black text-red-500 uppercase tracking-widest ml-1">{errors[field.id]}</span>
+                  )}
+
+                  {field.description && <p className="text-[10px] text-slate-400 mt-1 ml-1 font-medium">{field.description}</p>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {!isNested && (
+          <div className="pt-12 flex flex-col sm:flex-row items-center justify-between gap-6 border-t border-slate-100 mt-12">
+              <button 
+                  type="button"
+                  onClick={() => {
+                    const id = onSaveDraft?.(formData);
+                    if (id) setResumeCode(id.replace('draft-', ''));
+                  }}
+                  className="text-red-600 text-xs font-black uppercase tracking-widest flex items-center gap-2 group"
+              >
+                  <ShieldCheck size={16} /> Save Secure Draft
+              </button>
+              <button 
+                  type="submit"
+                  className="w-full sm:w-auto px-12 py-5 bg-red-600 text-white rounded-2xl font-black text-lg shadow-2xl shadow-red-200 hover:bg-red-700 hover:-translate-y-1 transition-all flex items-center justify-center gap-3"
+              >
+                  {form.submitButtonText || 'Complete Submission'}
+              </button>
+          </div>
+        )}
+      </form>
+    </div>
   );
 };
 

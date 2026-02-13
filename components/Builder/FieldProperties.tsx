@@ -1,17 +1,20 @@
 
-import React from 'react';
-import { X, ChevronRight, Settings, Sliders, ShieldCheck, Plus, Trash2, Edit3, Sparkles } from 'lucide-react';
-import { FormField, FieldType, Choice, Condition, ConditionalLogic } from '../../types';
+import React, { useState } from 'react';
+import { X, ChevronRight, Settings, Sliders, ShieldCheck, Plus, Trash2, Edit3, Sparkles, Tag, Layers } from 'lucide-react';
+import { FormField, FieldType, Choice, Condition, ConditionalLogic, FormConfig } from '../../types';
 import { WIDTH_OPTIONS } from '../../constants';
 
 interface Props {
   field?: FormField;
   allFields?: FormField[];
+  allForms?: FormConfig[];
   onUpdate: (updates: Partial<FormField>) => void;
   onClose: () => void;
 }
 
-const FieldProperties: React.FC<Props> = ({ field, allFields = [], onUpdate, onClose }) => {
+const FieldProperties: React.FC<Props> = ({ field, allFields = [], allForms = [], onUpdate, onClose }) => {
+  const [showTagMenu, setShowTagMenu] = useState<string | null>(null);
+
   if (!field) return null;
 
   const handleChoiceChange = (choiceId: string, text: string) => {
@@ -32,6 +35,12 @@ const FieldProperties: React.FC<Props> = ({ field, allFields = [], onUpdate, onC
 
   const removeChoice = (id: string) => {
     onUpdate({ choices: field.choices?.filter(c => c.id !== id) });
+  };
+
+  const insertTag = (prop: keyof FormField, tag: string) => {
+    const currentValue = (field[prop] as string) || '';
+    onUpdate({ [prop]: currentValue + `{${tag}}` });
+    setShowTagMenu(null);
   };
 
   // Logic Handlers
@@ -97,6 +106,31 @@ const FieldProperties: React.FC<Props> = ({ field, allFields = [], onUpdate, onC
     }
   };
 
+  const TagSelector = ({ targetProp }: { targetProp: keyof FormField }) => (
+    <div className="relative inline-block ml-auto">
+      <button 
+        onClick={() => setShowTagMenu(showTagMenu === targetProp ? null : targetProp)}
+        className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+        title="Insert Merge Tag"
+      >
+        <Tag size={14} />
+      </button>
+      {showTagMenu === targetProp && (
+        <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-50 py-2 max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150">
+          <div className="px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">Global Tags</div>
+          <button onClick={() => insertTag(targetProp, 'submission_date')} className="w-full px-3 py-1.5 text-left text-xs text-slate-600 hover:bg-slate-50 font-medium">Submission Date</button>
+          <button onClick={() => insertTag(targetProp, 'user_ip')} className="w-full px-3 py-1.5 text-left text-xs text-slate-600 hover:bg-slate-50 font-medium">IP Address</button>
+          <div className="px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mt-2 mb-1">Form Fields</div>
+          {allFields.filter(f => f.id !== field.id).map(f => (
+            <button key={f.id} onClick={() => insertTag(targetProp, `field:${f.id}`)} className="w-full px-3 py-1.5 text-left text-xs text-slate-600 hover:bg-slate-50 truncate font-medium">
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <aside className="w-80 bg-white border-l border-slate-200 flex flex-col shrink-0 z-20 shadow-2xl">
       <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
@@ -117,7 +151,10 @@ const FieldProperties: React.FC<Props> = ({ field, allFields = [], onUpdate, onC
           </h3>
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">Field Label</label>
+              <div className="flex items-center mb-1.5">
+                <label className="block text-xs font-bold text-slate-700">Field Label</label>
+                <TagSelector targetProp="label" />
+              </div>
               <input 
                 type="text" 
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
@@ -126,7 +163,10 @@ const FieldProperties: React.FC<Props> = ({ field, allFields = [], onUpdate, onC
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">Description</label>
+              <div className="flex items-center mb-1.5">
+                <label className="block text-xs font-bold text-slate-700">Description</label>
+                <TagSelector targetProp="description" />
+              </div>
               <textarea 
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm h-20 resize-none outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 value={field.description || ''}
@@ -135,7 +175,10 @@ const FieldProperties: React.FC<Props> = ({ field, allFields = [], onUpdate, onC
             </div>
             {/* Standard Default Value */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">Standard Default Value</label>
+              <div className="flex items-center mb-1.5">
+                <label className="block text-xs font-bold text-slate-700">Standard Default Value</label>
+                <TagSelector targetProp="defaultValue" />
+              </div>
               <input 
                 type="text" 
                 placeholder="Initial value..."
@@ -149,13 +192,40 @@ const FieldProperties: React.FC<Props> = ({ field, allFields = [], onUpdate, onC
               <span className="text-xs font-bold text-slate-700">Required Field</span>
               <button 
                 onClick={() => onUpdate({ required: !field.required })}
-                className={`w-10 h-5 rounded-full relative transition-all duration-300 ${field.required ? 'bg-indigo-600 shadow-lg shadow-indigo-100' : 'bg-slate-300'}`}
+                className={`w-10 h-5 rounded-full relative transition-all duration-300 ${field.required ? 'bg-indigo-600 shadow-indigo-100' : 'bg-slate-300'}`}
               >
                 <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${field.required ? 'left-6' : 'left-1'}`}></div>
               </button>
             </div>
           </div>
         </section>
+
+        {/* Nested Form Section */}
+        {field.type === FieldType.NESTED_FORM && (
+            <section className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
+                <h3 className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <Layers size={14} /> Nested Form Config
+                </h3>
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Select Form to Embed</label>
+                        <select 
+                            className="w-full px-3 py-2.5 rounded-xl border border-indigo-200 text-xs focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-bold text-indigo-900"
+                            value={field.nestedFormId || ''}
+                            onChange={(e) => onUpdate({ nestedFormId: e.target.value })}
+                        >
+                            <option value="">-- Choose a form --</option>
+                            {allForms.map(f => (
+                                <option key={f.id} value={f.id}>{f.title}</option>
+                            ))}
+                        </select>
+                        <p className="text-[9px] text-indigo-400 font-medium italic mt-2">
+                            The fields of the selected form will appear inside this field during preview.
+                        </p>
+                    </div>
+                </div>
+            </section>
+        )}
 
         {/* Choices Section */}
         {[FieldType.SELECT, FieldType.RADIO, FieldType.CHECKBOX, FieldType.QUIZ, FieldType.POLL].includes(field.type) && (
@@ -216,7 +286,7 @@ const FieldProperties: React.FC<Props> = ({ field, allFields = [], onUpdate, onC
             </h3>
             <button 
               onClick={toggleLogic}
-              className={`w-10 h-5 rounded-full relative transition-all duration-300 ${field.conditionalLogic ? 'bg-indigo-600 shadow-lg shadow-indigo-100' : 'bg-slate-300'}`}
+              className={`w-10 h-5 rounded-full relative transition-all duration-300 ${field.conditionalLogic ? 'bg-indigo-600 shadow-indigo-100' : 'bg-slate-300'}`}
             >
               <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${field.conditionalLogic ? 'left-6' : 'left-1'}`}></div>
             </button>
@@ -288,6 +358,7 @@ const FieldProperties: React.FC<Props> = ({ field, allFields = [], onUpdate, onC
                 {field.conditionalLogic.rules.map((rule, idx) => {
                   const sourceField = allFields.find(f => f.id === rule.fieldId);
                   const hasChoices = sourceField && [FieldType.SELECT, FieldType.RADIO, FieldType.CHECKBOX].includes(sourceField.type);
+                  const isUnaryOperator = ['is_empty', 'is_not_empty'].includes(rule.operator);
                   
                   return (
                     <div key={idx} className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm space-y-3 relative group/rule">
@@ -309,7 +380,7 @@ const FieldProperties: React.FC<Props> = ({ field, allFields = [], onUpdate, onC
                         ))}
                       </select>
 
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className={`grid ${isUnaryOperator ? 'grid-cols-1' : 'grid-cols-2'} gap-2`}>
                         <select 
                           className="text-[11px] p-2 bg-slate-50 border border-slate-100 rounded-xl outline-none font-medium"
                           value={rule.operator}
@@ -319,30 +390,36 @@ const FieldProperties: React.FC<Props> = ({ field, allFields = [], onUpdate, onC
                           <option value="not_equals">is not</option>
                           <option value="contains">contains</option>
                           <option value="greater_than">greater than</option>
+                          <option value="greater_than_or_equal_to">greater than or equal to</option>
                           <option value="less_than">less than</option>
+                          <option value="less_than_or_equal_to">less than or equal to</option>
                           <option value="starts_with">starts with</option>
                           <option value="ends_with">ends with</option>
+                          <option value="is_empty">is empty</option>
+                          <option value="is_not_empty">is not empty</option>
                         </select>
 
-                        {hasChoices ? (
-                          <select 
-                            className="text-[11px] p-2 bg-indigo-50 border border-indigo-100 rounded-xl outline-none font-bold text-indigo-700"
-                            value={String(rule.value)}
-                            onChange={(e) => updateRule(idx, { value: e.target.value })}
-                          >
-                            <option value="">Select Value</option>
-                            {sourceField.choices?.map(c => (
-                              <option key={c.id} value={c.value}>{c.text}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input 
-                            type="text"
-                            placeholder="Type value..."
-                            className="text-[11px] p-2 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-                            value={rule.value}
-                            onChange={(e) => updateRule(idx, { value: e.target.value })}
-                          />
+                        {!isUnaryOperator && (
+                          hasChoices ? (
+                            <select 
+                              className="text-[11px] p-2 bg-indigo-50 border border-indigo-100 rounded-xl outline-none font-bold text-indigo-700"
+                              value={String(rule.value)}
+                              onChange={(e) => updateRule(idx, { value: e.target.value })}
+                            >
+                              <option value="">Select Value</option>
+                              {sourceField.choices?.map(c => (
+                                <option key={c.id} value={c.value}>{c.text}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input 
+                              type="text"
+                              placeholder="Type value..."
+                              className="text-[11px] p-2 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                              value={rule.value}
+                              onChange={(e) => updateRule(idx, { value: e.target.value })}
+                            />
+                          )
                         )}
                       </div>
                     </div>

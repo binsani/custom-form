@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Trash2, Copy, Move, Settings as SettingsIcon } from 'lucide-react';
+import { Trash2, Copy, Move, Settings as SettingsIcon, FileJson, Download } from 'lucide-react';
 import { FormConfig, FormField, FieldType } from '../../types';
 
 interface CanvasProps {
@@ -8,6 +8,7 @@ interface CanvasProps {
   selectedFieldId: string | null;
   onSelectField: (id: string) => void;
   onDeleteField: (id: string) => void;
+  onExportField: (field: FormField) => void;
   onReorderFields: (fields: FormField[]) => void;
 }
 
@@ -16,6 +17,7 @@ const BuilderCanvas: React.FC<CanvasProps> = ({
   selectedFieldId, 
   onSelectField, 
   onDeleteField,
+  onExportField,
   onReorderFields
 }) => {
   const fields = form.pages[0].fields;
@@ -69,6 +71,16 @@ const BuilderCanvas: React.FC<CanvasProps> = ({
                 
                 {/* Action Buttons */}
                 <div className={`flex items-center gap-1 transition-opacity ${selectedFieldId === field.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onExportField(field);
+                    }}
+                    title="Export Field Snippet"
+                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                  >
+                    <Download size={14} />
+                  </button>
                   <button className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg">
                     <Copy size={14} />
                   </button>

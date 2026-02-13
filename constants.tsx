@@ -17,7 +17,8 @@ import {
   CheckCircle2, 
   BarChart2, 
   MessageSquare, 
-  ShoppingCart 
+  ShoppingCart,
+  Layers
 } from 'lucide-react';
 import { FieldType } from './types';
 
@@ -52,6 +53,7 @@ export const FIELD_CATEGORIES = [
       { type: FieldType.POLL, label: 'Poll', icon: <BarChart2 size={18} /> },
       { type: FieldType.SURVEY, label: 'Survey', icon: <MessageSquare size={18} /> },
       { type: FieldType.PRODUCT, label: 'Product', icon: <ShoppingCart size={18} /> },
+      { type: FieldType.NESTED_FORM, label: 'Nested Form', icon: <Layers size={18} /> },
     ]
   }
 ];

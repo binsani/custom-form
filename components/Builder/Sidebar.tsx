@@ -2,17 +2,28 @@
 import React from 'react';
 import { FIELD_CATEGORIES } from '../../constants';
 import { FieldType } from '../../types';
+import { FileJson } from 'lucide-react';
 
 interface SidebarProps {
   onAddField: (type: FieldType) => void;
+  onImportSnippet: () => void;
 }
 
-const BuilderSidebar: React.FC<SidebarProps> = ({ onAddField }) => {
+const BuilderSidebar: React.FC<SidebarProps> = ({ onAddField, onImportSnippet }) => {
   return (
     <aside className="w-80 bg-white border-r border-slate-200 flex flex-col shrink-0">
-      <div className="p-4 border-b border-slate-100">
-        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Add Fields</h2>
-        <p className="text-sm text-slate-500">Click to add fields to your form</p>
+      <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Add Fields</h2>
+          <p className="text-[10px] text-slate-500 font-medium">Click to insert components</p>
+        </div>
+        <button 
+          onClick={onImportSnippet}
+          title="Import Field Snippet"
+          className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100"
+        >
+          <FileJson size={18} />
+        </button>
       </div>
       
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
